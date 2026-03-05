@@ -10,14 +10,6 @@ type ProviderRow = {
   crm_excerpt?: string;
 };
 
-const store: {
-  kb: string;
-  providerByName: Map<string, ProviderRow>;
-} = {
-  kb: "",
-  providerByName: new Map(),
-};
-
 function getOpenAI() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -27,15 +19,17 @@ function getOpenAI() {
 }
 
 export async function POST(req: NextRequest) {
-  const { provider } = (await req.json()) as { provider: ProviderRow };
+  const body = (await req.json()) as {
+    provider: ProviderRow;
+    tempusKb?: string;
+  };
+  const { provider, tempusKb = "" } = body;
   if (!provider) {
     return NextResponse.json(
       { error: "Missing provider in request body." },
       { status: 400 }
     );
   }
-
-  const openai = getOpenAI();
 
   const objectionSystem =
     "You are a Tempus sales expert. Using ONLY facts from the Tempus Knowledge Base, write a short, professional rebuttal to the physician's concern. Be specific: cite product names (xF, xF+, xT CDx, xR), TATs (e.g., 7–9 days), and differentiators (tumor+normal, liquid biopsy when tissue is insufficient). Do not invent data.";
@@ -49,7 +43,7 @@ CRM excerpt (contains the concern):
 ${provider.crm_excerpt ?? "No CRM notes"}
 
 Tempus Knowledge Base:
-${store.kb}
+${tempusKb}
 
 Draft a 2–4 sentence objection-handling response.`;
 
@@ -64,40 +58,36 @@ CRM excerpt:
 ${provider.crm_excerpt ?? "No CRM notes"}
 
 Tempus Knowledge Base:
-${store.kb}
+${tempusKb}
 
 Write the 30-second pitch script.`;
 
   const client = getOpenAI();
 
   const [objResp, pitchResp] = await Promise.all([
-    client.responses.create({
-      model: "gpt-4.1-mini",
-      input: [
+    client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
         { role: "system", content: objectionSystem },
         { role: "user", content: objectionUser },
       ],
     }),
-    client.responses.create({
-      model: "gpt-4.1-mini",
-      input: [
+    client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
         { role: "system", content: pitchSystem },
         { role: "user", content: pitchUser },
       ],
     }),
   ]);
 
-  function extractText(r: OpenAI.Beta.Responses.Response) {
-    const first = r.output[0]?.content[0];
-    if (first && first.type === "output_text") {
-      return first.text;
-    }
-    return "";
-  }
+  const objectionHandler =
+    objResp.choices[0]?.message?.content?.trim() ?? "";
+  const pitch = pitchResp.choices[0]?.message?.content?.trim() ?? "";
 
   return NextResponse.json({
-    objectionHandler: extractText(objResp),
-    pitch: extractText(pitchResp),
+    objectionHandler,
+    pitch,
   });
 }
 

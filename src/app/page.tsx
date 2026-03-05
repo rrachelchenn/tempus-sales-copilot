@@ -23,6 +23,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rankedLeads, setRankedLeads] = useState<ProviderRow[]>([]);
+  const [tempusKbText, setTempusKbText] = useState<string>("");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [objection, setObjection] = useState<string | null>(null);
   const [pitch, setPitch] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export default function HomePage() {
       }
       const data: AnalysisResponse = await res.json();
       setRankedLeads(data.rankedLeads || []);
+      setTempusKbText(kbText);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Something went wrong.");
@@ -93,7 +95,7 @@ export default function HomePage() {
       const res = await fetch("/api/analyze/provider", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: lead }),
+        body: JSON.stringify({ provider: lead, tempusKb: tempusKbText }),
       });
       if (!res.ok) {
         const text = await res.text();

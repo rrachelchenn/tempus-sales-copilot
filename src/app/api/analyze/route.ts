@@ -75,9 +75,9 @@ Providers:
 ${JSON.stringify(rowsWithCrm, null, 2)}
 `;
 
-  const completion = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: [
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
       {
         role: "system",
         content:
@@ -91,11 +91,7 @@ ${JSON.stringify(rowsWithCrm, null, 2)}
     response_format: { type: "json_object" },
   });
 
-  const message = completion.output[0].content[0];
-  if (message.type !== "output_text") {
-    throw new Error("Unexpected OpenAI response format.");
-  }
-  const text = message.text.trim();
+  const text = completion.choices[0]?.message?.content?.trim() ?? "";
   let parsed: { provider_name: string; sales_potential_score: number }[] = [];
   try {
     const obj = JSON.parse(text);
@@ -133,12 +129,5 @@ ${JSON.stringify(rowsWithCrm, null, 2)}
 
 export async function OPTIONS() {
   return NextResponse.json({}, { status: 200 });
-}
-
-export async function POST_provider(req: NextRequest) {
-  return NextResponse.json(
-    { error: "Use /api/analyze/provider route for provider details." },
-    { status: 404 }
-  );
 }
 
