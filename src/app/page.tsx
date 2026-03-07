@@ -70,7 +70,19 @@ export default function HomePage() {
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Failed to analyze leads.");
+        let errMsg = "Failed to analyze leads.";
+        try {
+          const j = JSON.parse(text);
+          if (j && typeof j.error === "string") errMsg = j.error;
+        } catch {
+          if (text && text.trim().startsWith("<")) {
+            errMsg =
+              "Server error. Add OPENAI_API_KEY in Vercel (Settings → Environment Variables), then redeploy.";
+          } else if (text) {
+            errMsg = text.length > 280 ? text.slice(0, 280) + "…" : text;
+          }
+        }
+        throw new Error(errMsg);
       }
       const data: AnalysisResponse = await res.json();
       setRankedLeads(data.rankedLeads || []);
@@ -161,6 +173,10 @@ export default function HomePage() {
         >
           {loading ? "Analyzing leads..." : "Run analysis"}
         </button>
+
+        <p className="mt-2 text-xs text-slate-500">
+          Requires OPENAI_API_KEY in Vercel env vars and a redeploy.
+        </p>
 
         {error && (
           <p className="mt-3 text-xs text-red-400">
