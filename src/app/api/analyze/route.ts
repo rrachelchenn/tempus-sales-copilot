@@ -14,6 +14,58 @@ let cachedKb = "";
 let cachedCrm = "";
 let cachedRanked: ProviderRow[] | null = null;
 
+function heuristicScore(volume: number, crmExcerpt: string): number {
+  const dissatisf = crmExcerpt.toLowerCase().includes("dissatisf");
+  return Math.min(
+    100,
+    Math.max(1, 30 + Math.floor(volume / 6) + (dissatisf ? 25 : 0))
+  );
+}
+
+function parseScoresFromLLM(
+  text: string,
+  rowsWithCrm: { provider_name: string; estimated_patient_volume: number; crm_excerpt?: string }[]
+): { provider_name: string; sales_potential_score: number }[] {
+  if (!text) return rowsWithCrm.map((r) => ({
+    provider_name: r.provider_name,
+    sales_potential_score: heuristicScore(r.estimated_patient_volume, r.crm_excerpt ?? ""),
+  }));
+
+  try {
+    const obj = JSON.parse(text) as unknown;
+    let list: { provider_name: string; sales_potential_score: number }[] = [];
+
+    if (Array.isArray(obj)) {
+      list = obj.map((item: Record<string, unknown>) => ({
+        provider_name: String(item.provider_name ?? item.providerName ?? item.name ?? ""),
+        sales_potential_score: Number(item.sales_potential_score ?? item.score ?? item.salesPotentialScore ?? 50),
+      })).filter((p) => p.provider_name);
+    } else if (obj && typeof obj === "object") {
+      const arr = (obj as Record<string, unknown>).providers ?? (obj as Record<string, unknown>).ranked ?? (obj as Record<string, unknown>).scores;
+      if (Array.isArray(arr)) {
+        list = arr.map((item: Record<string, unknown>) => ({
+          provider_name: String(item.provider_name ?? item.providerName ?? item.name ?? ""),
+          sales_potential_score: Number(item.sales_potential_score ?? item.score ?? item.salesPotentialScore ?? 50),
+        })).filter((p) => p.provider_name);
+      } else if (arr && typeof arr === "object" && !Array.isArray(arr)) {
+        list = Object.entries(arr as Record<string, number>).map(([name, score]) => ({
+          provider_name: name.trim(),
+          sales_potential_score: Number(score) || 50,
+        }));
+      }
+    }
+
+    if (list.length > 0) return list;
+  } catch {
+    /* fall through to heuristic */
+  }
+
+  return rowsWithCrm.map((r) => ({
+    provider_name: r.provider_name,
+    sales_potential_score: heuristicScore(r.estimated_patient_volume, r.crm_excerpt ?? ""),
+  }));
+}
+
 function findCrmExcerpt(providerName: string, crmText: string): string {
   const nameShort = providerName.replace(/^Dr\\.\\s*/i, "").trim();
   const segments = crmText.split(/\n(?=Dr\\. )/);
@@ -110,19 +162,7 @@ ${JSON.stringify(rowsWithCrm, null, 2)}
     }
 
     const text = completion.choices[0]?.message?.content?.trim() ?? "";
-    let parsed: { provider_name: string; sales_potential_score: number }[] = [];
-    try {
-      const obj = JSON.parse(text);
-      parsed = Array.isArray(obj) ? obj : obj.providers || [];
-    } catch {
-      // Fallback: naive heuristic
-      parsed = rowsWithCrm.map((r) => ({
-        provider_name: r.provider_name,
-        sales_potential_score:
-          Math.min(100, Math.floor(r.estimated_patient_volume / 6)) +
-          (r.crm_excerpt?.toLowerCase().includes("dissatisf") ? 20 : 0),
-      }));
-    }
+    const parsed = parseScoresFromLLM(text, rowsWithCrm);
 
     const scoreMap = new Map(
       parsed.map((p) => [p.provider_name, p.sales_potential_score])
@@ -131,7 +171,9 @@ ${JSON.stringify(rowsWithCrm, null, 2)}
     const ranked = rowsWithCrm
       .map((r) => ({
         ...r,
-        sales_potential_score: scoreMap.get(r.provider_name) ?? 50,
+        sales_potential_score:
+          scoreMap.get(r.provider_name) ??
+          heuristicScore(r.estimated_patient_volume, r.crm_excerpt ?? ""),
       }))
       .sort(
         (a, b) =>
