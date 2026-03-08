@@ -10,35 +10,58 @@ type ProviderRow = {
   crm_excerpt?: string;
 };
 
-/** Extract key metrics from Tempus KB markdown for reps to reference. */
-function extractKeyMetricsFromKb(kbText: string): string[] {
-  if (!kbText?.trim()) return [];
-  const lines = kbText.split(/\r?\n/);
-  const metrics: string[] = [];
-  let currentSection = "";
-  const metricPattern = /(TAT|turnaround|%\d|genes?\s*\d|\d+\s*days?|weeks?|false.?positive|fusion|tumor|liquid|tissue|FDA)/i;
+/** Ask LLM to pick key metrics from the KB that are most relevant to this doctor. */
+async function getPersonalizedKeyMetrics(
+  client: Awaited<ReturnType<typeof getLLM>>["client"],
+  model: string,
+  provider: ProviderRow,
+  objectionHandler: string,
+  pitch: string,
+  tempusKb: string
+): Promise<string[]> {
+  if (!tempusKb?.trim()) return [];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const isHeader = /^#{1,3}\s+/.test(trimmed);
-    if (isHeader) {
-      currentSection = trimmed.replace(/^#+\s*/, "").trim();
-      continue;
-    }
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const isBullet = /^[-*•]\s*/.test(trimmed) || /^\d+\.\s*/.test(trimmed);
-    const hasMetric = metricPattern.test(trimmed);
-    if (currentSection && (isBullet || hasMetric) && (hasMetric || /\d+/.test(trimmed))) {
-      const oneLiner = trimmed
-        .replace(/^[-*•]\s*/, "")
-        .replace(/^\d+\.\s*/, "")
-        .replace(/\*\*/g, "");
-      if (oneLiner.length > 10 && oneLiner.length < 200) {
-        metrics.push(`${currentSection}: ${oneLiner}`);
-      }
-    }
+  const system =
+    "You are a Tempus sales expert. Given a physician's profile, their CRM concern, the objection-handling response, and the pitch script, select 4–8 specific metrics or facts from the Tempus Knowledge Base that are most relevant for this rep to reference if the physician asks follow-up questions. Pick stats that directly support the objection response and pitch (e.g. TAT, gene counts, percentages). Return ONLY valid JSON in this exact shape: {\"metrics\": [\"string1\", \"string2\", ...]}. Each string is one concise metric (e.g. \"xF+ TAT: 7–9 days\", \"Tumor+normal: 28% fewer false positives\"). No other keys or commentary.";
+
+  const user = `Physician: ${provider.provider_name}
+Specialty: ${provider.oncology_subspecialty}
+CRM concern/notes: ${provider.crm_excerpt ?? "None"}
+
+Objection handler (what the rep will say):
+${objectionHandler}
+
+30s pitch (what the rep will say):
+${pitch}
+
+Tempus Knowledge Base (choose metrics only from here):
+${tempusKb}
+
+Return JSON: {"metrics": ["...", "..."]} with 4–8 metric strings most relevant to this doctor.`;
+
+  try {
+    const res = await client.chat.completions.create({
+      model,
+      temperature: 0,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const text = res.choices[0]?.message?.content?.trim() ?? "";
+    const parsed = JSON.parse(text) as unknown;
+    const obj = parsed as Record<string, unknown>;
+    const list = Array.isArray(parsed)
+      ? parsed
+      : (obj.metrics ?? obj.keyMetrics ?? []) as unknown[];
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((x): x is string => typeof x === "string")
+      .slice(0, 10);
+  } catch {
+    return [];
   }
-  return metrics.slice(0, 16);
 }
 
 export async function POST(req: NextRequest) {
@@ -109,7 +132,15 @@ Write the 30-second pitch script.`;
   const objectionHandler =
     objResp.choices[0]?.message?.content?.trim() ?? "";
   const pitch = pitchResp.choices[0]?.message?.content?.trim() ?? "";
-  const keyMetricsFromKb = extractKeyMetricsFromKb(tempusKb);
+
+  const keyMetricsFromKb = await getPersonalizedKeyMetrics(
+    client,
+    model,
+    provider,
+    objectionHandler,
+    pitch,
+    tempusKb
+  );
 
   return NextResponse.json({
     objectionHandler,
