@@ -144,8 +144,8 @@ export default function HomePage() {
       <aside className="w-full rounded-xl border border-slate-800 bg-slate-900/60 p-4 md:w-80">
         <h1 className="text-xl font-semibold">Tempus Sales Copilot</h1>
         <p className="mt-1 text-sm text-slate-300">
-          For sales reps: prioritize leads, handle objections with KB-backed
-          rebuttals, and use the 30s pitch—all from your uploaded data.
+          Update your data in the indicated formats and click Run analysis to
+          get your ranked lead list.
         </p>
 
         <div className="mt-4 space-y-3 text-sm">
@@ -193,15 +193,16 @@ export default function HomePage() {
         )}
 
         <div className="mt-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Ranked Lead List
+            <span
+              className="cursor-help rounded-full bg-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300"
+              title="Sales potential score (1–100): based on estimated patient volume and CRM signals (e.g. dissatisfaction with TAT, tissue, or current vendor). Higher = higher-priority lead."
+            >
+              ?
+            </span>
           </h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Sales potential score (1–100): based on estimated patient volume and
-            CRM signals (e.g. dissatisfaction with TAT, tissue, or current
-            vendor). Higher = higher-priority lead.
-          </p>
-          <div className="mt-2 max-h-[380px] space-y-1 overflow-auto pr-1 text-sm">
+          <div className="mt-2 max-h-[400px] space-y-1 overflow-auto pr-1 text-sm">
             {rankedLeads.length === 0 && (
               <p className="text-xs text-slate-500">
                 Run the analysis to see ranked providers.
@@ -258,13 +259,16 @@ export default function HomePage() {
                   <span className="font-semibold">Est. patient volume:</span>{" "}
                   {rankedLeads[selectedIndex].estimated_patient_volume}
                 </p>
-                <p>
+                <p className="flex items-center gap-1.5">
                   <span className="font-semibold">Sales potential score:</span>{" "}
                   {rankedLeads[selectedIndex].sales_potential_score}
-                  <span className="ml-1 text-slate-500">/ 100</span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  Volume + CRM signals (dissatisfaction, TAT/tissue concerns).
+                  <span className="text-slate-500">/ 100</span>
+                  <span
+                    className="cursor-help rounded-full bg-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300"
+                    title="Volume + CRM signals (dissatisfaction, TAT/tissue concerns)."
+                  >
+                    ?
+                  </span>
                 </p>
               </div>
 
@@ -303,25 +307,41 @@ export default function HomePage() {
                   {objection}
                 </p>
               )}
-              {keyMetricsFromKb.length > 0 && (
-                <div className="mt-3 border-t border-slate-700 pt-3">
-                  <h4 className="mb-2 text-xs font-semibold text-slate-400">
-                    Key metrics to reference (from Tempus KB)
-                  </h4>
-                  <ul className="space-y-1.5 text-xs text-slate-300">
-                    {keyMetricsFromKb.map((m, i) => (
-                      <li key={i} className="flex gap-2">
-                        <span className="text-slate-500">•</span>
-                        <span>{m}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-[11px] text-slate-500">
-                    Use these when the physician asks for specifics or
-                    follow-up.
-                  </p>
-                </div>
-              )}
+              {keyMetricsFromKb.length > 0 && (() => {
+                const grouped: Record<string, string[]> = {};
+                for (const m of keyMetricsFromKb) {
+                  const idx = m.indexOf(": ");
+                  const section = idx > 0 ? m.slice(0, idx) : "Other";
+                  const detail = idx > 0 ? m.slice(idx + 2) : m;
+                  if (!grouped[section]) grouped[section] = [];
+                  grouped[section].push(detail);
+                }
+                return (
+                  <div className="mt-3 border-t border-slate-700 pt-3">
+                    <h4 className="mb-2 text-xs font-semibold text-slate-400">
+                      Key metrics to reference (from Tempus KB)
+                    </h4>
+                    <div className="space-y-3 text-xs text-slate-300">
+                      {Object.entries(grouped).map(([product, details]) => (
+                        <div key={product}>
+                          <p className="mb-1 font-medium text-slate-200">
+                            {product}
+                          </p>
+                          <ul className="ml-3 space-y-0.5">
+                            {details.map((d, i) => (
+                              <li key={i}>{d}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      Use these when the physician asks for specifics or
+                      follow-up.
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-sm">
