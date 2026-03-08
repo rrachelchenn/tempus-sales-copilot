@@ -12,7 +12,7 @@ export function getLLM(): { client: OpenAI; model: string } {
         apiKey: groqKey,
         baseURL: "https://api.groq.com/openai/v1",
       }),
-      model: "llama-3.1-70b-versatile",
+      model: "llama-3.3-70b-versatile",
     };
   }
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
