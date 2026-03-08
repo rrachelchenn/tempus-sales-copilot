@@ -174,10 +174,6 @@ export default function HomePage() {
           {loading ? "Analyzing leads..." : "Run analysis"}
         </button>
 
-        <p className="mt-2 text-xs text-slate-500">
-          Use GROQ_API_KEY (free at console.groq.com) or OPENAI_API_KEY in Vercel env vars.
-        </p>
-
         {error && (
           <p className="mt-3 text-xs text-red-400">
             <span className="font-semibold">Error:</span> {error}

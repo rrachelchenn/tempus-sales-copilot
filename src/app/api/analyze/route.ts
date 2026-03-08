@@ -67,18 +67,47 @@ function parseScoresFromLLM(
 }
 
 function findCrmExcerpt(providerName: string, crmText: string): string {
-  const nameShort = providerName.replace(/^Dr\\.\\s*/i, "").trim();
-  const segments = crmText.split(/\n(?=Dr\\. )/);
-  for (const seg of segments) {
-    const header = seg.split("(")[0];
-    if (header.includes(nameShort) || header.includes(providerName)) {
-      return seg.trim();
+  const nameShort = providerName.replace(/^Dr\.\s*/i, "").trim();
+  const normalized = crmText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
+
+  const blocks: { name: string; text: string }[] = [];
+  let current: string[] = [];
+  const drPrefix = /^\s*Dr\.\s+/i;
+
+  for (const line of lines) {
+    if (drPrefix.test(line)) {
+      if (current.length > 0) {
+        const firstLine = current[0];
+        const namePart = firstLine.split(/[:(]/)[0].replace(/^\s*Dr\.\s*/i, "").trim();
+        blocks.push({ name: namePart, text: current.join("\n").trim() });
+      }
+      current = [line];
+    } else if (current.length > 0) {
+      current.push(line);
     }
   }
-  const line = crmText
-    .split("\n")
-    .find((l) => l.includes(providerName) || l.includes(nameShort));
-  return line?.trim() || "No CRM notes found for this provider.";
+  if (current.length > 0) {
+    const firstLine = current[0];
+    const namePart = firstLine.split(/[:(]/)[0].replace(/^\s*Dr\.\s*/i, "").trim();
+    blocks.push({ name: namePart, text: current.join("\n").trim() });
+  }
+
+  for (const block of blocks) {
+    if (
+      block.name.includes(nameShort) ||
+      nameShort.includes(block.name) ||
+      block.text.includes(providerName) ||
+      block.text.startsWith("Dr. " + nameShort)
+    ) {
+      return block.text;
+    }
+  }
+
+  const singleLine = lines.find(
+    (l) => l.includes(providerName) || l.includes(nameShort)
+  );
+  return singleLine?.trim() || "No CRM notes found for this provider.";
 }
 
 export async function POST(req: NextRequest) {
