@@ -195,11 +195,13 @@ export default function HomePage() {
         <div className="mt-6">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Ranked Lead List
-            <span
-              className="cursor-help rounded-full bg-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300"
-              title="Sales potential score (1–100): based on estimated patient volume and CRM signals (e.g. dissatisfaction with TAT, tissue, or current vendor). Higher = higher-priority lead."
-            >
-              ?
+            <span className="group relative inline-flex">
+              <span className="cursor-help rounded-full bg-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300">
+                ?
+              </span>
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-56 -translate-x-1/2 rounded border border-slate-600 bg-slate-800 px-2.5 py-2 text-xs font-normal text-slate-200 shadow-xl opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                Sales potential score (1–100): based on estimated patient volume and CRM signals (e.g. dissatisfaction with TAT, tissue, or current vendor). Higher = higher-priority lead.
+              </span>
             </span>
           </h2>
           <div className="mt-2 max-h-[400px] space-y-1 overflow-auto pr-1 text-sm">
@@ -263,11 +265,13 @@ export default function HomePage() {
                   <span className="font-semibold">Sales potential score:</span>{" "}
                   {rankedLeads[selectedIndex].sales_potential_score}
                   <span className="text-slate-500">/ 100</span>
-                  <span
-                    className="cursor-help rounded-full bg-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300"
-                    title="Volume + CRM signals (dissatisfaction, TAT/tissue concerns)."
-                  >
-                    ?
+                  <span className="group relative inline-flex">
+                    <span className="cursor-help rounded-full bg-slate-600 px-1.5 py-0.5 text-[10px] text-slate-300">
+                      ?
+                    </span>
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-52 -translate-x-1/2 rounded border border-slate-600 bg-slate-800 px-2.5 py-2 text-xs font-normal text-slate-200 shadow-xl opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                      Volume + CRM signals (dissatisfaction, TAT/tissue concerns).
+                    </span>
                   </span>
                 </p>
               </div>
