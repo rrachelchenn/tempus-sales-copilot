@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { getLLM } from "@/lib/llm";
 
 type ProviderRow = {
   provider_name: string;
@@ -9,14 +9,6 @@ type ProviderRow = {
   sales_potential_score?: number;
   crm_excerpt?: string;
 };
-
-function getOpenAI() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing OPENAI_API_KEY environment variable.");
-  }
-  return new OpenAI({ apiKey });
-}
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
@@ -62,18 +54,18 @@ ${tempusKb}
 
 Write the 30-second pitch script.`;
 
-  const client = getOpenAI();
+  const { client, model } = getLLM();
 
   const [objResp, pitchResp] = await Promise.all([
     client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model,
       messages: [
         { role: "system", content: objectionSystem },
         { role: "user", content: objectionUser },
       ],
     }),
     client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model,
       messages: [
         { role: "system", content: pitchSystem },
         { role: "user", content: pitchUser },

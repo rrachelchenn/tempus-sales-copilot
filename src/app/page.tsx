@@ -175,7 +175,7 @@ export default function HomePage() {
         </button>
 
         <p className="mt-2 text-xs text-slate-500">
-          Requires OPENAI_API_KEY in Vercel env vars and a redeploy.
+          Use GROQ_API_KEY (free at console.groq.com) or OPENAI_API_KEY in Vercel env vars.
         </p>
 
         {error && (

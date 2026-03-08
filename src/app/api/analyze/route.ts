@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { getLLM, hasLLMKey } from "@/lib/llm";
 
 type ProviderRow = {
   provider_name: string;
@@ -13,14 +13,6 @@ type ProviderRow = {
 let cachedKb = "";
 let cachedCrm = "";
 let cachedRanked: ProviderRow[] | null = null;
-
-function getOpenAI() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing OPENAI_API_KEY environment variable.");
-  }
-  return new OpenAI({ apiKey });
-}
 
 function findCrmExcerpt(providerName: string, crmText: string): string {
   const nameShort = providerName.replace(/^Dr\\.\\s*/i, "").trim();
@@ -38,12 +30,11 @@ function findCrmExcerpt(providerName: string, crmText: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Return clear JSON error if key is missing (so UI always gets a message)
-  if (!process.env.OPENAI_API_KEY?.trim()) {
+  if (!hasLLMKey()) {
     return NextResponse.json(
       {
         error:
-          "OPENAI_API_KEY is not set. In Vercel: Project → Settings → Environment Variables → add OPENAI_API_KEY (your OpenAI key), then Redeploy.",
+          "No API key set. Add GROQ_API_KEY (free at console.groq.com) or OPENAI_API_KEY in Vercel → Settings → Environment Variables, then Redeploy.",
       },
       { status: 400 }
     );
@@ -67,7 +58,7 @@ export async function POST(req: NextRequest) {
     cachedKb = tempusKb || "";
     cachedCrm = crmNotes || "";
 
-    const openai = getOpenAI();
+    const { client, model } = getLLM();
 
     const rowsWithCrm = marketIntel.map((row) => {
       const crm_excerpt = findCrmExcerpt(row.provider_name, crmNotes || "");
@@ -89,8 +80,8 @@ ${JSON.stringify(rowsWithCrm, null, 2)}
 
     let completion;
     try {
-      completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      completion = await client.chat.completions.create({
+        model,
         messages: [
           {
             role: "system",
@@ -104,15 +95,15 @@ ${JSON.stringify(rowsWithCrm, null, 2)}
         ],
         response_format: { type: "json_object" },
       });
-    } catch (openaiErr: unknown) {
+    } catch (apiErr: unknown) {
       const msg =
-        openaiErr instanceof Error ? openaiErr.message : String(openaiErr);
+        apiErr instanceof Error ? apiErr.message : String(apiErr);
       return NextResponse.json(
         {
           error:
-            msg.includes("API key") || msg.includes("api_key")
-              ? "Invalid or missing OpenAI API key. Add OPENAI_API_KEY in Vercel Environment Variables."
-              : `OpenAI error: ${msg}`,
+            msg.includes("API key") || msg.includes("api_key") || msg.includes("quota")
+              ? "Invalid API key or quota exceeded. Try free Groq: add GROQ_API_KEY from console.groq.com in Vercel env vars."
+              : `API error: ${msg}`,
         },
         { status: 502 }
       );
