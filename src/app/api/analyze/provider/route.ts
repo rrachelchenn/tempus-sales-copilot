@@ -10,6 +10,37 @@ type ProviderRow = {
   crm_excerpt?: string;
 };
 
+/** Extract key metrics from Tempus KB markdown for reps to reference. */
+function extractKeyMetricsFromKb(kbText: string): string[] {
+  if (!kbText?.trim()) return [];
+  const lines = kbText.split(/\r?\n/);
+  const metrics: string[] = [];
+  let currentSection = "";
+  const metricPattern = /(TAT|turnaround|%\d|genes?\s*\d|\d+\s*days?|weeks?|false.?positive|fusion|tumor|liquid|tissue|FDA)/i;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isHeader = /^#{1,3}\s+/.test(trimmed);
+    if (isHeader) {
+      currentSection = trimmed.replace(/^#+\s*/, "").trim();
+      continue;
+    }
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const isBullet = /^[-*•]\s*/.test(trimmed) || /^\d+\.\s*/.test(trimmed);
+    const hasMetric = metricPattern.test(trimmed);
+    if (currentSection && (isBullet || hasMetric) && (hasMetric || /\d+/.test(trimmed))) {
+      const oneLiner = trimmed
+        .replace(/^[-*•]\s*/, "")
+        .replace(/^\d+\.\s*/, "")
+        .replace(/\*\*/g, "");
+      if (oneLiner.length > 10 && oneLiner.length < 200) {
+        metrics.push(`${currentSection}: ${oneLiner}`);
+      }
+    }
+  }
+  return metrics.slice(0, 16);
+}
+
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     provider: ProviderRow;
@@ -59,6 +90,7 @@ Write the 30-second pitch script.`;
   const [objResp, pitchResp] = await Promise.all([
     client.chat.completions.create({
       model,
+      temperature: 0,
       messages: [
         { role: "system", content: objectionSystem },
         { role: "user", content: objectionUser },
@@ -66,6 +98,7 @@ Write the 30-second pitch script.`;
     }),
     client.chat.completions.create({
       model,
+      temperature: 0,
       messages: [
         { role: "system", content: pitchSystem },
         { role: "user", content: pitchUser },
@@ -76,10 +109,12 @@ Write the 30-second pitch script.`;
   const objectionHandler =
     objResp.choices[0]?.message?.content?.trim() ?? "";
   const pitch = pitchResp.choices[0]?.message?.content?.trim() ?? "";
+  const keyMetricsFromKb = extractKeyMetricsFromKb(tempusKb);
 
   return NextResponse.json({
     objectionHandler,
     pitch,
+    keyMetricsFromKb,
   });
 }
 

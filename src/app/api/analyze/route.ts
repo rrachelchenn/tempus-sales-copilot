@@ -163,6 +163,7 @@ ${JSON.stringify(rowsWithCrm, null, 2)}
     try {
       completion = await client.chat.completions.create({
         model,
+        temperature: 0,
         messages: [
           {
             role: "system",
